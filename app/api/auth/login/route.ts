@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/response';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcrypt';
-import { signAccessToken, signRefreshToken } from '@/lib/auth';
+import crypto from 'crypto';
+import { hashToken, signAccessToken, signRefreshToken } from '@/lib/auth';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
 
@@ -35,18 +36,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    // Generate tokens
-    const accessToken = signAccessToken({ userId: user.id, role: user.role });
-    const refreshToken = signRefreshToken({ userId: user.id });
+    const role = user.role === 'ADMIN' ? 'ADMIN' : 'USER';
 
-    // Store refresh token in db (optional but good for revocation)
+    // Generate tokens (cookies HttpOnly)
+    const accessToken = signAccessToken({ userId: user.id, role });
+    const refreshToken = signRefreshToken({ userId: user.id, tokenId: crypto.randomUUID() });
+
+    // Store ONLY a hash of refresh token in db (avoid plaintext token at rest)
     await prisma.user.update({
       where: { id: user.id },
-      data: { refreshToken },
+      data: { refreshToken: hashToken(refreshToken) },
     });
 
-    // Set refresh token in HttpOnly cookie
     const cookieStore = await cookies();
+    cookieStore.set('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 15 * 60, // 15 minutes
+      path: '/',
+    });
     cookieStore.set('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -56,11 +65,10 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({
-      accessToken,
       user: {
         id: user.id,
         email: user.email,
-        role: user.role,
+        role,
       },
     });
   } catch (error) {

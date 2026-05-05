@@ -16,7 +16,7 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (token: string, userData: User) => void;
+  login: (userData: User) => void;
   logout: () => void;
 }
 
@@ -41,41 +41,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     fetchUser();
 
-    const handleTokenRefreshed = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      api.defaults.headers.common['Authorization'] = `Bearer ${customEvent.detail}`;
-    };
-
     const handleForceLogout = () => {
       setUser(null);
-      delete api.defaults.headers.common['Authorization'];
       router.push('/login');
     };
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('token_refreshed', handleTokenRefreshed);
       window.addEventListener('force_logout', handleForceLogout);
     }
 
     return () => {
       if (typeof window !== 'undefined') {
-        window.removeEventListener('token_refreshed', handleTokenRefreshed);
         window.removeEventListener('force_logout', handleForceLogout);
       }
     };
   }, [router]);
 
-  const login = (token: string, userData: User) => {
-    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  const login = (userData: User) => {
     setUser(userData);
   };
 
   const logout = async () => {
     try {
-      // You can add a call to /api/auth/logout if needed to clear the refresh token cookie
-    } catch(e) {}
+      await api.post('/auth/logout');
+    } catch {}
     setUser(null);
-    delete api.defaults.headers.common['Authorization'];
     router.push('/login');
   };
 

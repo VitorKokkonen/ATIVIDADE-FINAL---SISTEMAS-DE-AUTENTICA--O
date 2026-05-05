@@ -23,7 +23,7 @@ export default function LoginPage() {
 
     const validation = loginSchema.safeParse({ email, password });
     if (!validation.success) {
-      setError(validation.error.errors[0].message);
+      setError(validation.error.issues[0]?.message ?? 'Invalid input');
       return;
     }
 
@@ -42,10 +42,11 @@ export default function LoginPage() {
         throw new Error(data.error || 'Login failed');
       }
 
-      login(data.accessToken, data.user);
+      login(data.user);
       router.push('/');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Login failed';
+      setError(message);
     }
   };
 
