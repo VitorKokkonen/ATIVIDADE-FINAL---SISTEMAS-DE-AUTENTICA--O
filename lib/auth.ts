@@ -3,6 +3,7 @@ import jwt, { type JwtPayload } from 'jsonwebtoken';
 
 export type Role = 'ADMIN' | 'USER';
 
+
 const ISSUER = 'smart-gestor';
 const AUDIENCE = 'smart-gestor-web';
 
